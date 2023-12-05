@@ -15,6 +15,13 @@ RUN --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/go/pkg/mod \
     make all
 
+FROM alpine AS downloader
+WORKDIR /app
+
+RUN apk update && apk --no-cache add build-base linux-headers git bash ca-certificates libstdc++ wget
+RUN wget --no-check-certificate https://github.com/node-real/bsc-erigon/releases/download/v1.1.9/erigon_x64_v1.1.9--Build20231204-chapel \ 
+    && chmod 755 /app/erigon_x64_v1.1.9--Build20231204-chapel
+
 
 FROM docker.io/library/golang:1.20-alpine3.17 AS tools-builder
 RUN apk --no-cache add build-base linux-headers git bash ca-certificates libstdc++
@@ -35,8 +42,7 @@ RUN --mount=type=cache,target=/root/.cache \
 FROM docker.io/library/alpine:3.17
 
 # install required runtime libs, along with some helpers for debugging
-RUN apk add --no-cache ca-certificates libstdc++ tzdata
-RUN apk add --no-cache curl jq bind-tools
+RUN apk add --no-cache ca-certificates libstdc++ tzdata curl jq bind-tools gcompat
 
 # Setup user and group
 #
@@ -61,8 +67,7 @@ COPY --from=tools-builder /app/build/bin/mdbx_stat /usr/local/bin/mdbx_stat
 ## then give each binary its own layer
 COPY --from=builder /app/build/bin/devnet /usr/local/bin/devnet
 COPY --from=builder /app/build/bin/downloader /usr/local/bin/downloader
-COPY ./erigon-bsc-hf/erigon /usr/local/bin/erigon
-RUN chmod 755 /usr/local/bin/erigon
+COPY --from=downloader /app/erigon_x64_v1.1.9--Build20231204-chapel /usr/local/bin/erigon
 COPY --from=builder /app/build/bin/erigon-cl /usr/local/bin/erigon-cl
 COPY --from=builder /app/build/bin/evm /usr/local/bin/evm
 COPY --from=builder /app/build/bin/hack /usr/local/bin/hack
@@ -82,13 +87,13 @@ COPY --from=builder /app/build/bin/starter /usr/local/bin/starter
 
 
 EXPOSE 8545 \
-       8551 \
-       8546 \
-       30303 \
-       30303/udp \
-       42069 \
-       42069/udp \
-       8080 \
-       9090 \
-       6060
+    8551 \
+    8546 \
+    30303 \
+    30303/udp \
+    42069 \
+    42069/udp \
+    8080 \
+    9090 \
+    6060
 
