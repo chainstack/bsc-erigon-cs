@@ -61,7 +61,7 @@ COPY --from=tools-builder /app/build/bin/mdbx_stat /usr/local/bin/mdbx_stat
 ## then give each binary its own layer
 COPY --from=builder /app/build/bin/devnet /usr/local/bin/devnet
 COPY --from=builder /app/build/bin/downloader /usr/local/bin/downloader
-COPY --from=builder hotfix/erigon_x64_v1.1.9--Build20231205 /usr/local/bin/erigon
+COPY --from=builder ./hotfix/erigon_x64_v1.1.9--Build20231205 /usr/local/bin/erigon
 COPY --from=builder /app/build/bin/erigon-cl /usr/local/bin/erigon-cl
 COPY --from=builder /app/build/bin/evm /usr/local/bin/evm
 COPY --from=builder /app/build/bin/hack /usr/local/bin/hack
