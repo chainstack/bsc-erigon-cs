@@ -67,8 +67,15 @@ var allPrecompiles = map[libcommon.Address]PrecompiledContract{
 	libcommon.BytesToAddress([]byte{16}):   &bls12381Pairing{},
 	libcommon.BytesToAddress([]byte{17}):   &bls12381MapG1{},
 	libcommon.BytesToAddress([]byte{18}):   &bls12381MapG2{},
+<<<<<<< HEAD
 	libcommon.BytesToAddress([]byte{102}):  &blsSignatureVerify{},
 	libcommon.BytesToAddress([]byte{104}):  &verifyDoubleSignEvidence{}}
+=======
+	libcommon.BytesToAddress([]byte{20}):   &pointEvaluation{},
+	libcommon.BytesToAddress([]byte{102}):  &blsSignatureVerify{},
+	libcommon.BytesToAddress([]byte{104}):  &verifyDoubleSignEvidence{},
+}
+>>>>>>> v1.2.5
 
 // EIP-152 test vectors
 var blake2FMalformedInputTests = []precompiledFailureTest{
@@ -96,9 +103,10 @@ var blake2FMalformedInputTests = []precompiledFailureTest{
 
 func testPrecompiled(t *testing.T, addr string, test precompiledTest) {
 	p := allPrecompiles[libcommon.HexToAddress(addr)]
-	in := common.Hex2Bytes(test.Input)
+	in := libcommon.Hex2Bytes(test.Input)
 	gas := p.RequiredGas(in)
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.Name, gas), func(t *testing.T) {
+		t.Parallel()
 		if res, _, err := RunPrecompiledContract(p, in, gas); err != nil {
 			t.Error(err)
 		} else if common.Bytes2Hex(res) != test.Expected {
@@ -108,7 +116,7 @@ func testPrecompiled(t *testing.T, addr string, test precompiledTest) {
 			t.Errorf("%v: gas wrong, expected %d, got %d", test.Name, expGas, gas)
 		}
 		// Verify that the precompile did not touch the input buffer
-		exp := common.Hex2Bytes(test.Input)
+		exp := libcommon.Hex2Bytes(test.Input)
 		if !bytes.Equal(in, exp) {
 			t.Errorf("Precompiled %v modified input data", addr)
 		}
@@ -117,16 +125,17 @@ func testPrecompiled(t *testing.T, addr string, test precompiledTest) {
 
 func testPrecompiledOOG(t *testing.T, addr string, test precompiledTest) {
 	p := allPrecompiles[libcommon.HexToAddress(addr)]
-	in := common.Hex2Bytes(test.Input)
+	in := libcommon.Hex2Bytes(test.Input)
 	gas := p.RequiredGas(in) - 1
 
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.Name, gas), func(t *testing.T) {
+		t.Parallel()
 		_, _, err := RunPrecompiledContract(p, in, gas)
 		if err.Error() != "out of gas" {
 			t.Errorf("Expected error [out of gas], got [%v]", err)
 		}
 		// Verify that the precompile did not touch the input buffer
-		exp := common.Hex2Bytes(test.Input)
+		exp := libcommon.Hex2Bytes(test.Input)
 		if !bytes.Equal(in, exp) {
 			t.Errorf("Precompiled %v modified input data", addr)
 		}
@@ -135,15 +144,16 @@ func testPrecompiledOOG(t *testing.T, addr string, test precompiledTest) {
 
 func testPrecompiledFailure(addr string, test precompiledFailureTest, t *testing.T) {
 	p := allPrecompiles[libcommon.HexToAddress(addr)]
-	in := common.Hex2Bytes(test.Input)
+	in := libcommon.Hex2Bytes(test.Input)
 	gas := p.RequiredGas(in)
 	t.Run(test.Name, func(t *testing.T) {
+		t.Parallel()
 		_, _, err := RunPrecompiledContract(p, in, gas)
 		if err.Error() != test.ExpectedError {
 			t.Errorf("Expected error [%v], got [%v]", test.ExpectedError, err)
 		}
 		// Verify that the precompile did not touch the input buffer
-		exp := common.Hex2Bytes(test.Input)
+		exp := libcommon.Hex2Bytes(test.Input)
 		if !bytes.Equal(in, exp) {
 			t.Errorf("Precompiled %v modified input data", addr)
 		}
@@ -155,7 +165,7 @@ func benchmarkPrecompiled(b *testing.B, addr string, test precompiledTest) {
 		return
 	}
 	p := allPrecompiles[libcommon.HexToAddress(addr)]
-	in := common.Hex2Bytes(test.Input)
+	in := libcommon.Hex2Bytes(test.Input)
 	reqGas := p.RequiredGas(in)
 
 	var (
@@ -247,6 +257,7 @@ func BenchmarkPrecompiledBn256Add(b *testing.B) { benchJson("bn256Add", "06", b)
 
 // Tests OOG
 func TestPrecompiledModExpOOG(t *testing.T) {
+	t.Parallel()
 	modexpTests, err := loadJson("modexp")
 	if err != nil {
 		t.Fatal(err)
@@ -268,6 +279,7 @@ func TestPrecompiledBlake2F(t *testing.T)      { testJson("blake2F", "09", t) }
 func BenchmarkPrecompiledBlake2F(b *testing.B) { benchJson("blake2F", "09", b) }
 
 func TestPrecompileBlake2FMalformedInput(t *testing.T) {
+	t.Parallel()
 	for _, test := range blake2FMalformedInputTests {
 		testPrecompiledFailure("09", test, t)
 	}
@@ -314,6 +326,7 @@ func TestPrecompiledBLS12381G2MultiExp(t *testing.T) { testJson("blsG2MultiExp",
 func TestPrecompiledBLS12381Pairing(t *testing.T)    { testJson("blsPairing", "10", t) }
 func TestPrecompiledBLS12381MapG1(t *testing.T)      { testJson("blsMapG1", "11", t) }
 func TestPrecompiledBLS12381MapG2(t *testing.T)      { testJson("blsMapG2", "12", t) }
+func TestPrecompiledPointEvaluation(t *testing.T)    { testJson("pointEvaluation", "14", t) }
 
 func BenchmarkPrecompiledBLS12381G1Add(b *testing.B)      { benchJson("blsG1Add", "0a", b) }
 func BenchmarkPrecompiledBLS12381G1Mul(b *testing.B)      { benchJson("blsG1Mul", "0b", b) }
@@ -395,6 +408,25 @@ func BenchmarkPrecompiledBLS12381G2MultiExpWorstCase(b *testing.B) {
 	benchmarkPrecompiled(b, "0f", testcase)
 }
 
+<<<<<<< HEAD
+=======
+// Benchmarks the sample inputs from the P256VERIFY precompile.
+func BenchmarkPrecompiledP256Verify(b *testing.B) {
+	testcase := precompiledTest{
+		Input:    "4cee90eb86eaa050036147a12d49004b6b9c72bd725d39d4785011fe190f0b4da73bd4903f0ce3b639bbbf6e8e80d16931ff4bcf5993d58468e8fb19086e8cac36dbcd03009df8c59286b162af3bd7fcc0450c9aa81be5d10d312af6c66b1d604aebd3099c618202fcfe16ae7770b0c49ab5eadf74b754204a3bb6060e44eff37618b065f9832de4ca6ca971a7a1adc826d0f7c00181a5fb2ddf79ae00b4e10e",
+		Expected: "0000000000000000000000000000000000000000000000000000000000000001",
+		Name:     "p256Verify",
+	}
+	benchmarkPrecompiled(b, "100", testcase)
+}
+
+func TestPrecompiledP256Verify(t *testing.T) {
+	t.Parallel()
+
+	testJson("p256Verify", "100", t)
+}
+
+>>>>>>> v1.2.5
 func TestDoubleSignSlash(t *testing.T) {
 	tc := precompiledTest{
 		Input:    "f906278202cab9030ff9030ca01062d3d5015b9242bc193a9b0769f3d3780ecb55f97f40a752ae26d0b68cd0d8a0fae1a05fcb14bfd9b8a9f2b65007a9b6c2000de0627a73be644dd993d32342c494976ea74026e726554db657fa54763abd0c3a0aa9a0f385cc58ed297ff0d66eb5580b02853d3478ba418b1819ac659ee05df49b9794a0bf88464af369ed6b8cf02db00f0b9556ffa8d49cd491b00952a7f83431446638a00a6d0870e586a76278fbfdcedf76ef6679af18fc1f9137cfad495f434974ea81b901000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001820cdf830f4240830f4240846555fa64b90111d983010301846765746888676f312e32302e378664617277696e00007abd731ef8ae07b86091cb8836d58f5444b883422a18825d899035d3e6ea39ad1a50069bf0b86da8b5573dde1cb4a0a34f19ce94e0ef78ff7518c80265b8a3ca56e3c60167523590d4e8dcc324900559465fc0fa403774096614e135de280949b58a45cc96f2ba9e17f848820d41a08429d0d8b33ee72a84f750fefea846cbca54e487129c7961c680bb72309ca888820d42a08c9db14d938b19f9e2261bbeca2679945462be2b58103dfff73665d0d150fb8a804ae755e0fe64b59753f4db6308a1f679747bce186aa2c62b95fa6eeff3fbd08f3b0667e45428a54ade15bad19f49641c499b431b36f65803ea71b379e6b61de501a0232c9ba2d41b40d36ed794c306747bcbc49bf61a0f37409c18bfe2b5bef26a2d880000000000000000b9030ff9030ca01062d3d5015b9242bc193a9b0769f3d3780ecb55f97f40a752ae26d0b68cd0d8a0b2789a5357827ed838335283e15c4dcc42b9bebcbf2919a18613246787e2f96094976ea74026e726554db657fa54763abd0c3a0aa9a071ce4c09ee275206013f0063761bc19c93c13990582f918cc57333634c94ce89a00e095703e5c9b149f253fe89697230029e32484a410b4b1f2c61442d73c3095aa0d317ae19ede7c8a2d3ac9ef98735b049bcb7278d12f48c42b924538b60a25e12b901000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001820cdf830f4240830f4240846555fa64b90111d983010301846765746888676f312e32302e378664617277696e00007abd731ef8ae07b86091cb8836d58f5444b883422a18825d899035d3e6ea39ad1a50069bf0b86da8b5573dde1cb4a0a34f19ce94e0ef78ff7518c80265b8a3ca56e3c60167523590d4e8dcc324900559465fc0fa403774096614e135de280949b58a45cc96f2ba9e17f848820d41a08429d0d8b33ee72a84f750fefea846cbca54e487129c7961c680bb72309ca888820d42a08c9db14d938b19f9e2261bbeca2679945462be2b58103dfff73665d0d150fb8a80c0b17bfe88534296ff064cb7156548f6deba2d6310d5044ed6485f087dc6ef232e051c28e1909c2b50a3b4f29345d66681c319bef653e52e5d746480d5a3983b00a0b56228685be711834d0f154292d07826dea42a0fad3e4f56c31470b7fbfbea26880000000000000000",

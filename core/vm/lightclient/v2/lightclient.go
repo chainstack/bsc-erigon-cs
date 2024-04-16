@@ -166,11 +166,19 @@ func DecodeConsensusState(input []byte) (ConsensusState, error) {
 		pos += validatorVotingPowerLength
 
 		relayerAddress := make([]byte, relayerAddressLength)
+<<<<<<< HEAD
 		copy(relayerAddress[:], validatorBytes[pos:pos+relayerAddressLength])
 		pos += relayerAddressLength
 
 		relayerBlsKey := make([]byte, relayerBlsKeyLength)
 		copy(relayerBlsKey[:], validatorBytes[pos:])
+=======
+		copy(relayerAddress, validatorBytes[pos:pos+relayerAddressLength])
+		pos += relayerAddressLength
+
+		relayerBlsKey := make([]byte, relayerBlsKeyLength)
+		copy(relayerBlsKey, validatorBytes[pos:])
+>>>>>>> v1.2.5
 
 		validator := types.NewValidator(pubkey, votingPower)
 		validator.SetRelayerAddress(relayerAddress)

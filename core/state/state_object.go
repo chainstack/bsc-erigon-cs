@@ -25,7 +25,11 @@ import (
 	"github.com/holiman/uint256"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 
+<<<<<<< HEAD
 	"github.com/ledgerwatch/erigon/common/hexutil"
+=======
+	"github.com/ledgerwatch/erigon-lib/common/hexutil"
+>>>>>>> v1.2.5
 	"github.com/ledgerwatch/erigon/core/types/accounts"
 	"github.com/ledgerwatch/erigon/crypto"
 	"github.com/ledgerwatch/erigon/rlp"
@@ -86,10 +90,11 @@ type stateObject struct {
 	// Cache flags.
 	// When an object is marked selfdestructed it will be delete from the trie
 	// during the "update" phase of the state transition.
-	dirtyCode      bool // true if the code was updated
-	selfdestructed bool
-	deleted        bool // true if account was deleted during the lifetime of this object
-	created        bool // true if this object represents a newly created contract
+	dirtyCode       bool // true if the code was updated
+	selfdestructed  bool
+	deleted         bool // true if account was deleted during the lifetime of this object
+	newlyCreated    bool // true if this object was created in the current transaction
+	createdContract bool // true if this object represents a newly created contract
 }
 
 // empty returns whether the account is considered empty.
@@ -339,7 +344,7 @@ func (so *stateObject) GetCommittedState(key *libcommon.Hash, out *uint256.Int) 
 			return
 		}
 	}
-	if so.created {
+	if so.createdContract {
 		out.Clear()
 		return
 	}

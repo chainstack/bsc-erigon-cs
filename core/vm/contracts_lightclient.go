@@ -255,6 +255,10 @@ func (c *basicIavlMerkleProofValidate) Run(input []byte) (result []byte, err err
 
 	return successfulMerkleResult(), nil
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> v1.2.5
 func forbiddenAbsenceOpVerifier(op merkle.ProofOperator) error {
 	if op == nil {
 		return nil

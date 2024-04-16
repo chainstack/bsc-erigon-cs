@@ -1,6 +1,7 @@
 package trie
 
 import (
+	"github.com/ledgerwatch/erigon-lib/common/hexutil"
 	"testing"
 
 	"github.com/holiman/uint256"

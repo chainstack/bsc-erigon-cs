@@ -23,7 +23,10 @@ import (
 	"crypto/elliptic"
 	"errors"
 	"fmt"
+<<<<<<< HEAD
 
+=======
+>>>>>>> v1.2.5
 	"github.com/btcsuite/btcd/btcec"
 	btc_ecdsa "github.com/btcsuite/btcd/btcec/v2/ecdsa"
 )

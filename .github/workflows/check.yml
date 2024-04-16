@@ -1,0 +1,16 @@
+name: Check
+
+on:
+  push:
+    branches:
+      - devel
+      - devel_1.2.0
+  workflow_dispatch:
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ${GITHUB_REF}
+      - run: echo ${GITHUB_REF#refs/tags/}
+      - run: echo ${GITHUB_REF##*/}

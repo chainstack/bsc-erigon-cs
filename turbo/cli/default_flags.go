@@ -4,7 +4,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ledgerwatch/erigon/cmd/utils"
-	"github.com/ledgerwatch/erigon/turbo/logging"
 )
 
 // DefaultFlags contains all flags that are used and supported by Erigon binary.
@@ -18,7 +17,10 @@ var DefaultFlags = []cli.Flag{
 	&utils.TxPoolNoLocalsFlag,
 	&utils.TxPoolPriceLimitFlag,
 	&utils.TxPoolPriceBumpFlag,
+	&utils.TxPoolBlobPriceBumpFlag,
 	&utils.TxPoolAccountSlotsFlag,
+	&utils.TxPoolBlobSlotsFlag,
+	&utils.TxPoolTotalBlobPoolLimit,
 	&utils.TxPoolGlobalSlotsFlag,
 	&utils.TxPoolGlobalBaseFeeSlotsFlag,
 	&utils.TxPoolAccountQueueFlag,
@@ -50,6 +52,7 @@ var DefaultFlags = []cli.Flag{
 	&BadBlockFlag,
 
 	&utils.HTTPEnabledFlag,
+	&utils.HTTPServerEnabledFlag,
 	&utils.GraphQLEnabledFlag,
 	&utils.HTTPListenAddrFlag,
 	&utils.HTTPPortFlag,
@@ -61,6 +64,7 @@ var DefaultFlags = []cli.Flag{
 	&utils.HTTPVirtualHostsFlag,
 	&utils.AuthRpcVirtualHostsFlag,
 	&utils.HTTPApiFlag,
+	&utils.WSPortFlag,
 	&utils.WSEnabledFlag,
 	&utils.WsCompressionFlag,
 	&utils.HTTPTraceFlag,
@@ -73,6 +77,9 @@ var DefaultFlags = []cli.Flag{
 	&utils.RpcGasCapFlag,
 	&utils.RpcBatchLimit,
 	&utils.RpcReturnDataLimit,
+	&utils.AllowUnprotectedTxs,
+	&utils.RpcMaxGetProofRewindBlockCount,
+	&utils.RPCGlobalTxFeeCapFlag,
 	&utils.TxpoolApiAddrFlag,
 	&utils.TraceMaxtracesFlag,
 	&HTTPReadTimeoutFlag,
@@ -87,6 +94,7 @@ var DefaultFlags = []cli.Flag{
 	&utils.SnapStopFlag,
 	&utils.DbPageSizeFlag,
 	&utils.DbSizeLimitFlag,
+	&utils.ForcePartialCommitFlag,
 	&utils.TorrentPortFlag,
 	&utils.TorrentMaxPeersFlag,
 	&utils.TorrentConnsPerFileFlag,
@@ -117,11 +125,7 @@ var DefaultFlags = []cli.Flag{
 	&utils.GpoBlocksFlag,
 	&utils.GpoPercentileFlag,
 	&utils.InsecureUnlockAllowedFlag,
-	&utils.MetricsEnabledFlag,
-	&utils.MetricsHTTPFlag,
-	&utils.MetricsPortFlag,
 	&utils.HistoryV3Flag,
-	&utils.TransactionV3Flag,
 	&utils.IdentityFlag,
 	&utils.CliqueSnapshotCheckpointIntervalFlag,
 	&utils.CliqueSnapshotInmemorySnapshotsFlag,
@@ -137,7 +141,6 @@ var DefaultFlags = []cli.Flag{
 	&utils.MinerSigningKeyFileFlag,
 	&utils.SentryAddrFlag,
 	&utils.SentryLogPeerInfoFlag,
-	&utils.SentryDropUselessPeers,
 	&utils.DownloaderAddrFlag,
 	&utils.DisableIPV4,
 	&utils.DisableIPV6,
@@ -145,9 +148,13 @@ var DefaultFlags = []cli.Flag{
 	&utils.DownloaderVerifyFlag,
 	&HealthCheckFlag,
 	&utils.HeimdallURLFlag,
+	&utils.WebSeedsFlag,
 	&utils.WithoutHeimdallFlag,
-	&utils.HeimdallgRPCAddressFlag,
+	&utils.BorBlockPeriodFlag,
+	&utils.BorBlockSizeFlag,
+	&utils.WithHeimdallMilestones,
 	&utils.EthStatsURLFlag,
+<<<<<<< HEAD
 	&utils.OverrideFeynmanTime,
 
 	&utils.ConfigFlag,
@@ -157,12 +164,51 @@ var DefaultFlags = []cli.Flag{
 	&logging.LogConsoleJsonFlag,
 	&logging.LogJsonFlag,
 	&logging.LogDirJsonFlag,
+=======
+	&utils.OverrideCancunFlag,
+>>>>>>> v1.2.5
 
 	&utils.LightClientDiscoveryAddrFlag,
 	&utils.LightClientDiscoveryPortFlag,
 	&utils.LightClientDiscoveryTCPPortFlag,
 	&utils.SentinelAddrFlag,
 	&utils.SentinelPortFlag,
+<<<<<<< HEAD
 	&utils.StageSyncUpperBoundFlag,
 	&utils.StageSyncStepFlag,
+=======
+
+	&utils.OtsSearchMaxCapFlag,
+
+	&utils.SilkwormExecutionFlag,
+	&utils.SilkwormRpcDaemonFlag,
+	&utils.SilkwormSentryFlag,
+
+	&utils.BeaconAPIFlag,
+	&utils.BeaconApiAddrFlag,
+	&utils.BeaconApiAllowMethodsFlag,
+	&utils.BeaconApiAllowOriginsFlag,
+	&utils.BeaconApiAllowCredentialsFlag,
+	&utils.BeaconApiPortFlag,
+	&utils.BeaconApiReadTimeoutFlag,
+	&utils.BeaconApiWriteTimeoutFlag,
+	&utils.BeaconApiProtocolFlag,
+	&utils.BeaconApiIdleTimeoutFlag,
+
+	&utils.CaplinBackfillingFlag,
+	&utils.CaplinBlobBackfillingFlag,
+	&utils.CaplinDisableBlobPruningFlag,
+	&utils.CaplinArchiveFlag,
+
+	&utils.TrustedSetupFile,
+	&utils.RPCSlowFlag,
+
+	&utils.TxPoolGossipDisableFlag,
+
+	&utils.StageSyncUpperBoundFlag,
+	&utils.StageSyncStepFlag,
+	&SyncLoopBlockLimitFlag,
+	&SyncLoopBreakAfterFlag,
+	&SyncLoopPruneLimitFlag,
+>>>>>>> v1.2.5
 }

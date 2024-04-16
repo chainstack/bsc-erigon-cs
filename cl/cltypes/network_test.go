@@ -4,29 +4,20 @@ import (
 	"testing"
 
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon-lib/types/ssz"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ledgerwatch/erigon/cl/clparams"
 	"github.com/ledgerwatch/erigon/cl/cltypes"
-	"github.com/ledgerwatch/erigon/cl/cltypes/ssz"
 )
 
 var testMetadata = &cltypes.Metadata{
 	SeqNumber: 99,
-	Attnets:   69,
+	Attnets:   [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
 }
 
 var testPing = &cltypes.Ping{
 	Id: 420,
-}
-
-var testSingleRoot = &cltypes.SingleRoot{
-	Root: libcommon.HexToHash("96"),
-}
-
-var testLcRangeRequest = &cltypes.LightClientUpdatesByRangeRequest{
-	Period: 69,
-	Count:  666,
 }
 
 var testBlockRangeRequest = &cltypes.BeaconBlocksByRangeRequest{
@@ -49,28 +40,44 @@ var testHeader = &cltypes.BeaconBlockHeader{
 	BodyRoot:      libcommon.HexToHash("ad"),
 }
 
+var testBlockRoot = &cltypes.Root{
+	Root: libcommon.HexToHash("a"),
+}
+
+var testLightClientUpdatesByRange = &cltypes.LightClientUpdatesByRangeRequest{
+	StartPeriod: 100,
+	Count:       10,
+}
+
+var testBlobRequestByRange = &cltypes.BlobsByRangeRequest{
+	StartSlot: 100,
+	Count:     10,
+}
+
 func TestMarshalNetworkTypes(t *testing.T) {
 	cases := []ssz.EncodableSSZ{
 		testMetadata,
 		testPing,
-		testSingleRoot,
-		testLcRangeRequest,
 		testBlockRangeRequest,
 		testStatus,
+		testBlockRoot,
+		testLightClientUpdatesByRange,
+		testBlobRequestByRange,
 	}
 
 	unmarshalDestinations := []ssz.EncodableSSZ{
 		&cltypes.Metadata{},
 		&cltypes.Ping{},
-		&cltypes.SingleRoot{},
-		&cltypes.LightClientUpdatesByRangeRequest{},
 		&cltypes.BeaconBlocksByRangeRequest{},
 		&cltypes.Status{},
+		&cltypes.Root{},
+		&cltypes.LightClientUpdatesByRangeRequest{},
+		&cltypes.BlobsByRangeRequest{},
 	}
 	for i, tc := range cases {
 		marshalledBytes, err := tc.EncodeSSZ(nil)
 		require.NoError(t, err)
 		require.Equal(t, len(marshalledBytes), tc.EncodingSizeSSZ())
-		require.NoError(t, unmarshalDestinations[i].DecodeSSZWithVersion(marshalledBytes, int(clparams.CapellaVersion)))
+		require.NoError(t, unmarshalDestinations[i].DecodeSSZ(marshalledBytes, int(clparams.CapellaVersion)))
 	}
 }

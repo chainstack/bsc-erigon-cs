@@ -18,11 +18,19 @@ package vm
 
 import (
 	"bytes"
+<<<<<<< HEAD
+=======
+	"crypto/sha256"
+>>>>>>> v1.2.5
 	"encoding/binary"
 	"errors"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/rlp"
 	"github.com/ledgerwatch/secp256k1"
+<<<<<<< HEAD
+=======
+	"github.com/prysmaticlabs/prysm/v5/crypto/bls"
+>>>>>>> v1.2.5
 	"math/big"
 
 	"github.com/ledgerwatch/log/v3"
@@ -32,13 +40,16 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/chain"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon-lib/crypto/blake2b"
+	libkzg "github.com/ledgerwatch/erigon-lib/crypto/kzg"
 
 	"github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/common/math"
 	"github.com/ledgerwatch/erigon/crypto"
-	"github.com/ledgerwatch/erigon/crypto/blake2b"
 	"github.com/ledgerwatch/erigon/crypto/bls12381"
 	"github.com/ledgerwatch/erigon/crypto/bn256"
+	"github.com/ledgerwatch/log/v3"
+
 	"github.com/ledgerwatch/erigon/params"
 
 	//lint:ignore SA1019 Needed for precompile
@@ -148,6 +159,26 @@ var PrecompiledContractsBerlin = map[libcommon.Address]PrecompiledContract{
 	libcommon.BytesToAddress([]byte{9}): &blake2F{},
 }
 
+var PrecompiledContractsCancun = map[libcommon.Address]PrecompiledContract{
+	libcommon.BytesToAddress([]byte{0x01}): &ecrecover{},
+	libcommon.BytesToAddress([]byte{0x02}): &sha256hash{},
+	libcommon.BytesToAddress([]byte{0x03}): &ripemd160hash{},
+	libcommon.BytesToAddress([]byte{0x04}): &dataCopy{},
+	libcommon.BytesToAddress([]byte{0x05}): &bigModExp{eip2565: true},
+	libcommon.BytesToAddress([]byte{0x06}): &bn256AddIstanbul{},
+	libcommon.BytesToAddress([]byte{0x07}): &bn256ScalarMulIstanbul{},
+	libcommon.BytesToAddress([]byte{0x08}): &bn256PairingIstanbul{},
+	libcommon.BytesToAddress([]byte{0x09}): &blake2F{},
+	libcommon.BytesToAddress([]byte{0x0a}): &pointEvaluation{},
+
+	libcommon.BytesToAddress([]byte{100}): &tmHeaderValidate{},
+	libcommon.BytesToAddress([]byte{101}): &iavlMerkleProofValidatePlato{},
+	libcommon.BytesToAddress([]byte{102}): &blsSignatureVerify{},
+	libcommon.BytesToAddress([]byte{103}): &cometBFTLightBlockValidateHertz{},
+	libcommon.BytesToAddress([]byte{104}): &verifyDoubleSignEvidence{},
+	libcommon.BytesToAddress([]byte{105}): &secp256k1SignatureRecover{},
+}
+
 // PrecompiledContractsBLS contains the set of pre-compiled Ethereum
 // contracts specified in EIP-2537. These are exported for testing purposes.
 var PrecompiledContractsBLS = map[libcommon.Address]PrecompiledContract{
@@ -252,6 +283,10 @@ var PrecompiledContractsFeynman = map[libcommon.Address]PrecompiledContract{
 	libcommon.BytesToAddress([]byte{104}): &verifyDoubleSignEvidence{},
 	libcommon.BytesToAddress([]byte{105}): &secp256k1SignatureRecover{},
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> v1.2.5
 var (
 	PrecompiledAddressesFeynman        []libcommon.Address
 	PrecompiledAddressesHertz          []libcommon.Address
@@ -260,6 +295,10 @@ var (
 	PrecompiledAddressesPlanck         []libcommon.Address
 	PrecompiledAddressesMoran          []libcommon.Address
 	PrecompiledAddressesNano           []libcommon.Address
+<<<<<<< HEAD
+=======
+	PrecompiledAddressesCancun         []libcommon.Address
+>>>>>>> v1.2.5
 	PrecompiledAddressesBerlin         []libcommon.Address
 	PrecompiledAddressesIstanbul       []libcommon.Address
 	PrecompiledAddressesIstanbulForBSC []libcommon.Address
@@ -283,6 +322,12 @@ func init() {
 	for k := range PrecompiledContractsBerlin {
 		PrecompiledAddressesBerlin = append(PrecompiledAddressesBerlin, k)
 	}
+<<<<<<< HEAD
+=======
+	for k := range PrecompiledContractsCancun {
+		PrecompiledAddressesCancun = append(PrecompiledAddressesCancun, k)
+	}
+>>>>>>> v1.2.5
 	for k := range PrecompiledContractsNano {
 		PrecompiledAddressesNano = append(PrecompiledAddressesNano, k)
 	}
@@ -313,6 +358,11 @@ func init() {
 // ActivePrecompiles returns the precompiles enabled with the current configuration.
 func ActivePrecompiles(rules *chain.Rules) []libcommon.Address {
 	switch {
+<<<<<<< HEAD
+=======
+	case rules.IsCancun:
+		return PrecompiledAddressesCancun
+>>>>>>> v1.2.5
 	case rules.IsFeynman:
 		return PrecompiledAddressesFeynman
 	case rules.IsHertz:
@@ -1152,7 +1202,7 @@ func (c *bls12381Pairing) Run(input []byte) ([]byte, error) {
 			return nil, errBLS12381G2PointSubgroup
 		}
 
-		// Update pairing engine with G1 and G2 ponits
+		// Update pairing engine with G1 and G2 points
 		e.AddPair(p1, p2)
 	}
 	// Prepare 32 byte output
@@ -1259,6 +1309,22 @@ func (c *bls12381MapG2) Run(input []byte) ([]byte, error) {
 	return g.EncodePoint(r), nil
 }
 
+<<<<<<< HEAD
+=======
+// pointEvaluation implements the EIP-4844 point evaluation precompile
+// to check if a value is part of a blob at a specific point with a KZG proof.
+type pointEvaluation struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *pointEvaluation) RequiredGas(input []byte) uint64 {
+	return params.PointEvaluationGas
+}
+
+func (c *pointEvaluation) Run(input []byte) ([]byte, error) {
+	return libkzg.PointEvaluationPrecompile(input)
+}
+
+>>>>>>> v1.2.5
 // blsSignatureVerify implements bls signature verification precompile.
 type blsSignatureVerify struct{}
 
@@ -1269,6 +1335,10 @@ const (
 )
 
 // RequiredGas returns the gas required to execute the pre-compiled contract.
+<<<<<<< HEAD
+=======
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+>>>>>>> v1.2.5
 func (c *blsSignatureVerify) RequiredGas(input []byte) uint64 {
 	msgAndSigLength := msgHashLength + signatureLength
 	inputLen := uint64(len(input))

@@ -5,7 +5,11 @@ import (
 
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/pkg/errors"
+<<<<<<< HEAD
 	"github.com/prysmaticlabs/prysm/v4/crypto/bls"
+=======
+	"github.com/prysmaticlabs/prysm/v5/crypto/bls"
+>>>>>>> v1.2.5
 )
 
 const (

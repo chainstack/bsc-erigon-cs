@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/ledgerwatch/erigon/core/systemcontracts"
 	"sync"
 
 	"github.com/RoaringBitmap/roaring/roaring64"
@@ -17,9 +18,7 @@ import (
 	libstate "github.com/ledgerwatch/erigon-lib/state"
 
 	"github.com/ledgerwatch/erigon/cmd/state/exec22"
-	"github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/consensus"
-	"github.com/ledgerwatch/erigon/consensus/misc"
 	"github.com/ledgerwatch/erigon/core"
 	"github.com/ledgerwatch/erigon/core/state"
 	"github.com/ledgerwatch/erigon/core/systemcontracts"
@@ -152,7 +151,7 @@ func (fw *FillWorker) FillCode(codeCollector, plainContractCollector *etl.Collec
 		copy(compositeKey, key)
 		if len(val) > 0 {
 
-			codeHash, err := common.HashData(val)
+			codeHash, err := libcommon.HashData(val)
 			if err != nil {
 				return err
 			}
@@ -296,29 +295,27 @@ func (rw *ReconWorker) runTxTask(txTask *exec22.TxTask) error {
 	rw.ibs.Reset()
 	ibs := rw.ibs
 	rules := txTask.Rules
-	daoForkTx := rw.chainConfig.DAOForkBlock != nil && rw.chainConfig.DAOForkBlock.Uint64() == txTask.BlockNum && txTask.TxIndex == -1
 	var err error
+
+	var logger = log.New("recon-tx")
+
 	if txTask.BlockNum == 0 && txTask.TxIndex == -1 {
 		//fmt.Printf("txNum=%d, blockNum=%d, Genesis\n", txTask.TxNum, txTask.BlockNum)
 		// Genesis block
-		_, ibs, err = core.GenesisToBlock(rw.genesis, "")
+		_, ibs, err = core.GenesisToBlock(rw.genesis, "", logger)
 		if err != nil {
 			return err
 		}
 		// For Genesis, rules should be empty, so that empty accounts can be included
 		rules = &chain.Rules{}
-	} else if daoForkTx {
-		//fmt.Printf("txNum=%d, blockNum=%d, DAO fork\n", txNum, blockNum)
-		misc.ApplyDAOHardFork(ibs)
-		ibs.SoftFinalise()
 	} else if txTask.Final {
 		if txTask.BlockNum > 0 {
 			//fmt.Printf("txNum=%d, blockNum=%d, finalisation of the block\n", txTask.TxNum, txTask.BlockNum)
 			// End of block transaction in a block
 			syscall := func(contract libcommon.Address, data []byte) ([]byte, error) {
-				return core.SysCallContract(contract, data, *rw.chainConfig, ibs, txTask.Header, rw.engine, false /* constCall */, nil /*excessDataGas*/)
+				return core.SysCallContract(contract, data, rw.chainConfig, ibs, txTask.Header, rw.engine, false /* constCall */)
 			}
-			if _, _, err := rw.engine.Finalize(rw.chainConfig, types.CopyHeader(txTask.Header), ibs, txTask.Txs, txTask.Uncles, nil, txTask.Withdrawals, rw.chain, syscall); err != nil {
+			if _, _, err := rw.engine.Finalize(rw.chainConfig, types.CopyHeader(txTask.Header), ibs, txTask.Txs, txTask.Uncles, nil, txTask.Withdrawals, rw.chain, syscall, logger); err != nil {
 				if _, readError := rw.stateReader.ReadError(); !readError {
 					return fmt.Errorf("finalize of block %d failed: %w", txTask.BlockNum, err)
 				}
@@ -326,6 +323,7 @@ func (rw *ReconWorker) runTxTask(txTask *exec22.TxTask) error {
 		}
 	} else if txTask.TxIndex == -1 {
 		// Block initialisation
+<<<<<<< HEAD
 		if rw.isPoSA {
 			parent := rw.chain.GetHeader(txTask.Header.ParentHash, txTask.Header.Number.Uint64()-1)
 			if !rw.chainConfig.IsFeynman(txTask.Header.Number.Uint64(), txTask.Header.Time) {
@@ -334,9 +332,22 @@ func (rw *ReconWorker) runTxTask(txTask *exec22.TxTask) error {
 		}
 		syscall := func(contract libcommon.Address, data []byte) ([]byte, error) {
 			return core.SysCallContract(contract, data, *rw.chainConfig, ibs, txTask.Header, rw.engine, false /* constCall */, nil /*excessDataGas*/)
+=======
+		syscall := func(contract libcommon.Address, data []byte, ibState *state.IntraBlockState, header *types.Header, constCall bool) ([]byte, error) {
+			return core.SysCallContract(contract, data, rw.chainConfig, ibState, header, rw.engine, constCall /* constCall */)
+>>>>>>> v1.2.5
 		}
 
-		rw.engine.Initialize(rw.chainConfig, rw.chain, txTask.Header, ibs, txTask.Txs, txTask.Uncles, syscall)
+		rw.engine.Initialize(rw.chainConfig, rw.chain, txTask.Header, ibs, syscall, logger)
+		if !rw.chainConfig.IsFeynman(txTask.Header.Number.Uint64(), txTask.Header.Time) {
+			parent := rw.chain.GetHeaderByHash(txTask.Header.ParentHash)
+			systemcontracts.UpgradeBuildInSystemContract(rw.chainConfig, txTask.Header.Number, parent.Time, txTask.Header.Time, ibs, logger)
+		}
+		if err = ibs.FinalizeTx(rules, noop); err != nil {
+			if _, readError := rw.stateReader.ReadError(); !readError {
+				return err
+			}
+		}
 	} else {
 		if rw.isPoSA {
 			if isSystemTx, err := rw.posa.IsSystemTransaction(txTask.Tx, txTask.Header); err != nil {
@@ -347,9 +358,13 @@ func (rw *ReconWorker) runTxTask(txTask *exec22.TxTask) error {
 				return nil
 			}
 		}
+<<<<<<< HEAD
 		gp := new(core.GasPool).AddGas(txTask.Tx.GetGas())
+=======
+		gp := new(core.GasPool).AddGas(txTask.Tx.GetGas()).AddBlobGas(txTask.Tx.GetBlobGas())
+>>>>>>> v1.2.5
 		vmConfig := vm.Config{NoReceipts: true, SkipAnalysis: txTask.SkipAnalysis}
-		ibs.Prepare(txTask.Tx.Hash(), txTask.BlockHash, txTask.TxIndex)
+		ibs.SetTxContext(txTask.Tx.Hash(), txTask.BlockHash, txTask.TxIndex)
 		msg := txTask.TxAsMessage
 
 		rw.evm.ResetBetweenBlocks(txTask.EvmBlockContext, core.NewEVMTxContext(msg), ibs, vmConfig, txTask.Rules)

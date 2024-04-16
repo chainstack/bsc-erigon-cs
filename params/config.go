@@ -24,10 +24,11 @@ import (
 	"path"
 
 	"github.com/ledgerwatch/erigon-lib/chain"
+	"github.com/ledgerwatch/erigon-lib/chain/networkname"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon/polygon/bor/borcfg"
 
 	"github.com/ledgerwatch/erigon/common/paths"
-	"github.com/ledgerwatch/erigon/params/networkname"
 )
 
 //go:embed chainspecs
@@ -39,29 +40,44 @@ func readChainSpec(filename string) *chain.Config {
 		panic(fmt.Sprintf("Could not open chainspec for %s: %v", filename, err))
 	}
 	defer f.Close()
+
 	decoder := json.NewDecoder(f)
 	spec := &chain.Config{}
 	err = decoder.Decode(&spec)
 	if err != nil {
 		panic(fmt.Sprintf("Could not parse chainspec for %s: %v", filename, err))
 	}
+
+	if spec.BorJSON != nil {
+		borConfig := &borcfg.BorConfig{}
+		err = json.Unmarshal(spec.BorJSON, borConfig)
+		if err != nil {
+			panic(fmt.Sprintf("Could not parse 'bor' chainspec for %s: %v", filename, err))
+		}
+		spec.Bor = borConfig
+	}
+
 	return spec
 }
 
 // Genesis hashes to enforce below configs on.
 var (
 	MainnetGenesisHash    = libcommon.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
+	HoleskyGenesisHash    = libcommon.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
 	SepoliaGenesisHash    = libcommon.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
-	RinkebyGenesisHash    = libcommon.HexToHash("0x6341fd3daf94b748c72ced5a5b26028f2474f5f00d824504e4fa37a75767e177")
 	GoerliGenesisHash     = libcommon.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a")
 	BSCGenesisHash        = libcommon.HexToHash("0x0d21840abff46b96c84b2ac9e10e4f5cdaeb5693cb665db62a2f3b02d2d57b5b")
 	ChapelGenesisHash     = libcommon.HexToHash("0x6d3c66c5357ec91d5c43af47e234a939b22557cbb552dc45bebbceeed90fbe34")
 	RialtoGenesisHash     = libcommon.HexToHash("0x80b449d100d5c0cf46a4aef50d4545933dc9040ffd1b5f0e22475f9855735eb7")
 	MumbaiGenesisHash     = libcommon.HexToHash("0x7b66506a9ebdbf30d32b43c5f15a3b1216269a1ec3a75aa3182b86176a2b1ca7")
+	AmoyGenesisHash       = libcommon.HexToHash("0x7202b2b53c5a0836e773e319d18922cc756dd67432f9a1f65352b61f4406c697")
 	BorMainnetGenesisHash = libcommon.HexToHash("0xa9c28ce2141b56c474f1dc504bee9b01eb1bd7d1a507580d5519d4437a97de1b")
 	BorDevnetGenesisHash  = libcommon.HexToHash("0x5a06b25b0c6530708ea0b98a3409290e39dce6be7f558493aeb6e4b99a172a87")
 	GnosisGenesisHash     = libcommon.HexToHash("0x4f1dd23188aab3a76b463e4af801b52b1248ef073c648cbdc4c9333d3da79756")
 	ChiadoGenesisHash     = libcommon.HexToHash("0xada44fd8d2ecab8b08f256af07ad3e777f17fb434f8f8e678b312f576212ba9a")
+	BSCGenesisHash        = libcommon.HexToHash("0x0d21840abff46b96c84b2ac9e10e4f5cdaeb5693cb665db62a2f3b02d2d57b5b")
+	ChapelGenesisHash     = libcommon.HexToHash("0x6d3c66c5357ec91d5c43af47e234a939b22557cbb552dc45bebbceeed90fbe34")
+	RialtoGenesisHash     = libcommon.HexToHash("0x769b541a5e36539a33e2d7c14e6b5c44e6ecd1e0ef13f257bf054710e6b62df4")
 )
 
 var (
@@ -73,11 +89,11 @@ var (
 	// MainnetChainConfig is the chain parameters to run a node on the main network.
 	MainnetChainConfig = readChainSpec("chainspecs/mainnet.json")
 
+	// HoleskyChainConfi contains the chain parameters to run a node on the Holesky test network.
+	HoleskyChainConfig = readChainSpec("chainspecs/holesky.json")
+
 	// SepoliaChainConfig contains the chain parameters to run a node on the Sepolia test network.
 	SepoliaChainConfig = readChainSpec("chainspecs/sepolia.json")
-
-	// RinkebyChainConfig contains the chain parameters to run a node on the Rinkeby test network.
-	RinkebyChainConfig = readChainSpec("chainspecs/rinkeby.json")
 
 	// GoerliChainConfig contains the chain parameters to run a node on the Görli test network.
 	GoerliChainConfig = readChainSpec("chainspecs/goerli.json")
@@ -108,6 +124,7 @@ var (
 		TerminalTotalDifficulty:       big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
 		ShanghaiTime:                  big.NewInt(0),
+		CancunTime:                    big.NewInt(0),
 		Ethash:                        new(chain.EthashConfig),
 	}
 
@@ -130,6 +147,8 @@ var (
 	}
 
 	MumbaiChainConfig = readChainSpec("chainspecs/mumbai.json")
+
+	AmoyChainConfig = readChainSpec("chainspecs/amoy.json")
 
 	BorMainnetChainConfig = readChainSpec("chainspecs/bor-mainnet.json")
 
@@ -203,10 +222,12 @@ func ChainConfigByChainName(chain string) *chain.Config {
 	switch chain {
 	case networkname.MainnetChainName:
 		return MainnetChainConfig
+	case networkname.DevChainName:
+		return AllCliqueProtocolChanges
+	case networkname.HoleskyChainName:
+		return HoleskyChainConfig
 	case networkname.SepoliaChainName:
 		return SepoliaChainConfig
-	case networkname.RinkebyChainName:
-		return RinkebyChainConfig
 	case networkname.GoerliChainName:
 		return GoerliChainConfig
 	case networkname.BSCChainName:
@@ -217,6 +238,8 @@ func ChainConfigByChainName(chain string) *chain.Config {
 		return RialtoChainConfig
 	case networkname.MumbaiChainName:
 		return MumbaiChainConfig
+	case networkname.AmoyChainName:
+		return AmoyChainConfig
 	case networkname.BorMainnetChainName:
 		return BorMainnetChainConfig
 	case networkname.BorDevnetChainName:
@@ -234,10 +257,10 @@ func GenesisHashByChainName(chain string) *libcommon.Hash {
 	switch chain {
 	case networkname.MainnetChainName:
 		return &MainnetGenesisHash
+	case networkname.HoleskyChainName:
+		return &HoleskyGenesisHash
 	case networkname.SepoliaChainName:
 		return &SepoliaGenesisHash
-	case networkname.RinkebyChainName:
-		return &RinkebyGenesisHash
 	case networkname.GoerliChainName:
 		return &GoerliGenesisHash
 	case networkname.BSCChainName:
@@ -248,6 +271,8 @@ func GenesisHashByChainName(chain string) *libcommon.Hash {
 		return &RialtoGenesisHash
 	case networkname.MumbaiChainName:
 		return &MumbaiGenesisHash
+	case networkname.AmoyChainName:
+		return &AmoyGenesisHash
 	case networkname.BorMainnetChainName:
 		return &BorMainnetGenesisHash
 	case networkname.BorDevnetChainName:
@@ -265,10 +290,10 @@ func ChainConfigByGenesisHash(genesisHash libcommon.Hash) *chain.Config {
 	switch {
 	case genesisHash == MainnetGenesisHash:
 		return MainnetChainConfig
+	case genesisHash == HoleskyGenesisHash:
+		return HoleskyChainConfig
 	case genesisHash == SepoliaGenesisHash:
 		return SepoliaChainConfig
-	case genesisHash == RinkebyGenesisHash:
-		return RinkebyChainConfig
 	case genesisHash == GoerliGenesisHash:
 		return GoerliChainConfig
 	case genesisHash == BSCGenesisHash:
@@ -279,6 +304,8 @@ func ChainConfigByGenesisHash(genesisHash libcommon.Hash) *chain.Config {
 		return RialtoChainConfig
 	case genesisHash == MumbaiGenesisHash:
 		return MumbaiChainConfig
+	case genesisHash == AmoyGenesisHash:
+		return AmoyChainConfig
 	case genesisHash == BorMainnetGenesisHash:
 		return BorMainnetChainConfig
 	case genesisHash == BorDevnetGenesisHash:
@@ -293,6 +320,7 @@ func ChainConfigByGenesisHash(genesisHash libcommon.Hash) *chain.Config {
 }
 
 func NetworkIDByChainName(chain string) uint64 {
+<<<<<<< HEAD
 	switch chain {
 	case networkname.RialtoChainName:
 		return 97
@@ -304,5 +332,46 @@ func NetworkIDByChainName(chain string) uint64 {
 			return 0
 		}
 		return config.ChainID.Uint64()
+=======
+	config := ChainConfigByChainName(chain)
+	if config == nil {
+		return 0
+>>>>>>> v1.2.5
 	}
+	return config.ChainID.Uint64()
+}
+
+func IsChainPoS(chainConfig *chain.Config, currentTDProvider func() *big.Int) bool {
+	return isChainIDPoS(chainConfig.ChainID) || hasChainPassedTerminalTD(chainConfig, currentTDProvider)
+}
+
+func isChainIDPoS(chainID *big.Int) bool {
+	ids := []*big.Int{
+		MainnetChainConfig.ChainID,
+		HoleskyChainConfig.ChainID,
+		GoerliChainConfig.ChainID,
+		SepoliaChainConfig.ChainID,
+		GnosisChainConfig.ChainID,
+		ChiadoChainConfig.ChainID,
+	}
+	for _, id := range ids {
+		if id.Cmp(chainID) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func hasChainPassedTerminalTD(chainConfig *chain.Config, currentTDProvider func() *big.Int) bool {
+	if chainConfig.TerminalTotalDifficultyPassed {
+		return true
+	}
+
+	terminalTD := chainConfig.TerminalTotalDifficulty
+	if terminalTD == nil {
+		return false
+	}
+
+	currentTD := currentTDProvider()
+	return (currentTD != nil) && (terminalTD.Cmp(currentTD) <= 0)
 }

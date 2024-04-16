@@ -1,39 +1,26 @@
 package privateapi
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
-	"reflect"
-	"sync"
-	"time"
 
-	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/log/v3"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/ledgerwatch/erigon-lib/chain"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon-lib/direct"
 	"github.com/ledgerwatch/erigon-lib/gointerfaces"
 	"github.com/ledgerwatch/erigon-lib/gointerfaces/remote"
 	types2 "github.com/ledgerwatch/erigon-lib/gointerfaces/types"
 	"github.com/ledgerwatch/erigon-lib/kv"
 
 	"github.com/ledgerwatch/erigon/common"
-	"github.com/ledgerwatch/erigon/consensus/serenity"
-	"github.com/ledgerwatch/erigon/core"
-	"github.com/ledgerwatch/erigon/core/rawdb"
-	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/params"
 	"github.com/ledgerwatch/erigon/rlp"
-	"github.com/ledgerwatch/erigon/rpc"
 	"github.com/ledgerwatch/erigon/turbo/builder"
-	"github.com/ledgerwatch/erigon/turbo/engineapi"
 	"github.com/ledgerwatch/erigon/turbo/services"
 	"github.com/ledgerwatch/erigon/turbo/shards"
-	"github.com/ledgerwatch/erigon/turbo/stages/headerdownload"
 )
 
 // EthBackendAPIVersion
@@ -43,35 +30,21 @@ import (
 // 3.0.0 - adding PoS interfaces
 // 3.1.0 - add Subscribe to logs
 // 3.2.0 - add EngineGetBlobsBundleV1
-var EthBackendAPIVersion = &types2.VersionReply{Major: 3, Minor: 2, Patch: 0}
-
-const MaxBuilders = 128
-
-var UnknownPayloadErr = rpc.CustomError{Code: -38001, Message: "Unknown payload"}
-var InvalidForkchoiceStateErr = rpc.CustomError{Code: -38002, Message: "Invalid forkchoice state"}
-var InvalidPayloadAttributesErr = rpc.CustomError{Code: -38003, Message: "Invalid payload attributes"}
-var TooLargeRequestErr = rpc.CustomError{Code: -38004, Message: "Too large request"}
+// 3.3.0 - merge EngineGetBlobsBundleV1 into EngineGetPayload
+var EthBackendAPIVersion = &types2.VersionReply{Major: 3, Minor: 3, Patch: 0}
 
 type EthBackendServer struct {
 	remote.UnimplementedETHBACKENDServer // must be embedded to have forward compatible implementations.
 
-	ctx         context.Context
-	eth         EthBackend
-	events      *shards.Events
-	db          kv.RoDB
-	blockReader services.BlockAndTxnReader
-	config      *chain.Config
+	ctx                   context.Context
+	eth                   EthBackend
+	events                *shards.Events
+	db                    kv.RoDB
+	blockReader           services.FullBlockReader
+	latestBlockBuiltStore *builder.LatestBlockBuiltStore
 
-	// Block proposing for proof-of-stake
-	payloadId      uint64
-	lastParameters *core.BlockBuilderParameters
-	builders       map[uint64]*builder.BlockBuilder
-	builderFunc    builder.BlockBuilderFunc
-	proposing      bool
-
-	lock       sync.Mutex // Engine API is asynchronous, we want to avoid CL to call different APIs at the same time
 	logsFilter *LogsFilterAggregator
-	hd         *headerdownload.HeaderDownload
+	logger     log.Logger
 }
 
 type EthBackend interface {
@@ -80,28 +53,30 @@ type EthBackend interface {
 	NetPeerCount() (uint64, error)
 	NodesInfo(limit int) (*remote.NodesInfoReply, error)
 	Peers(ctx context.Context) (*remote.PeersReply, error)
+	AddPeer(ctx context.Context, url *remote.AddPeerRequest) (*remote.AddPeerReply, error)
 }
 
-func NewEthBackendServer(ctx context.Context, eth EthBackend, db kv.RwDB, events *shards.Events, blockReader services.BlockAndTxnReader,
-	config *chain.Config, builderFunc builder.BlockBuilderFunc, hd *headerdownload.HeaderDownload, proposing bool,
+func NewEthBackendServer(ctx context.Context, eth EthBackend, db kv.RwDB, events *shards.Events, blockReader services.FullBlockReader,
+	logger log.Logger, latestBlockBuiltStore *builder.LatestBlockBuiltStore,
 ) *EthBackendServer {
-	s := &EthBackendServer{ctx: ctx, eth: eth, events: events, db: db, blockReader: blockReader, config: config,
-		builders:    make(map[uint64]*builder.BlockBuilder),
-		builderFunc: builderFunc, proposing: proposing, logsFilter: NewLogsFilterAggregator(events), hd: hd,
+	s := &EthBackendServer{ctx: ctx, eth: eth, events: events, db: db, blockReader: blockReader,
+		logsFilter:            NewLogsFilterAggregator(events),
+		logger:                logger,
+		latestBlockBuiltStore: latestBlockBuiltStore,
 	}
 
 	ch, clean := s.events.AddLogsSubscription()
 	go func() {
 		var err error
 		defer clean()
-		log.Info("new subscription to logs established")
+		logger.Info("new subscription to logs established")
 		defer func() {
 			if err != nil {
 				if !errors.Is(err, context.Canceled) {
-					log.Warn("subscription to logs closed", "reason", err)
+					logger.Warn("subscription to logs closed", "reason", err)
 				}
 			} else {
-				log.Warn("subscription to logs closed")
+				logger.Warn("subscription to logs closed")
 			}
 		}()
 		for {
@@ -119,6 +94,29 @@ func NewEthBackendServer(ctx context.Context, eth EthBackend, db kv.RwDB, events
 
 func (s *EthBackendServer) Version(context.Context, *emptypb.Empty) (*types2.VersionReply, error) {
 	return EthBackendAPIVersion, nil
+}
+
+func (s *EthBackendServer) PendingBlock(ctx context.Context, _ *emptypb.Empty) (*remote.PendingBlockReply, error) {
+	pendingBlock := s.latestBlockBuiltStore.BlockBuilt()
+	if pendingBlock == nil {
+		tx, err := s.db.BeginRo(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
+		// use latest
+		pendingBlock, err = s.blockReader.CurrentBlock(tx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	blockRlp, err := rlp.EncodeToBytes(pendingBlock)
+	if err != nil {
+		return nil, err
+	}
+
+	return &remote.PendingBlockReply{BlockRlp: blockRlp}, nil
 }
 
 func (s *EthBackendServer) Etherbase(_ context.Context, _ *remote.EtherbaseRequest) (*remote.EtherbaseReply, error) {
@@ -150,19 +148,19 @@ func (s *EthBackendServer) NetPeerCount(_ context.Context, _ *remote.NetPeerCoun
 }
 
 func (s *EthBackendServer) Subscribe(r *remote.SubscribeRequest, subscribeServer remote.ETHBACKEND_SubscribeServer) (err error) {
-	log.Debug("Establishing event subscription channel with the RPC daemon ...")
+	s.logger.Debug("Establishing event subscription channel with the RPC daemon ...")
 	ch, clean := s.events.AddHeaderSubscription()
 	defer clean()
 	newSnCh, newSnClean := s.events.AddNewSnapshotSubscription()
 	defer newSnClean()
-	log.Info("new subscription to newHeaders established")
+	s.logger.Info("new subscription to newHeaders established")
 	defer func() {
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
-				log.Warn("subscription to newHeaders closed", "reason", err)
+				s.logger.Warn("subscription to newHeaders closed", "reason", err)
 			}
 		} else {
-			log.Warn("subscription to newHeaders closed")
+			s.logger.Warn("subscription to newHeaders closed")
 		}
 	}()
 	_ = subscribeServer.Send(&remote.SubscribeReply{Type: remote.Event_NEW_SNAPSHOT})
@@ -190,8 +188,7 @@ func (s *EthBackendServer) Subscribe(r *remote.SubscribeRequest, subscribeServer
 }
 
 func (s *EthBackendServer) ProtocolVersion(_ context.Context, _ *remote.ProtocolVersionRequest) (*remote.ProtocolVersionReply, error) {
-	// Hardcoding to avoid import cycle
-	return &remote.ProtocolVersionReply{Id: 66}, nil
+	return &remote.ProtocolVersionReply{Id: direct.ETH66}, nil
 }
 
 func (s *EthBackendServer) ClientVersion(_ context.Context, _ *remote.ClientVersionRequest) (*remote.ClientVersionReply, error) {
@@ -238,6 +235,7 @@ func (s *EthBackendServer) Block(ctx context.Context, req *remote.BlockRequest) 
 	return &remote.BlockReply{BlockRlp: blockRlp, Senders: sendersBytes}, nil
 }
 
+<<<<<<< HEAD
 func (s *EthBackendServer) PendingBlock(_ context.Context, _ *emptypb.Empty) (*remote.PendingBlockReply, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -874,6 +872,8 @@ func (s *EthBackendServer) evictOldBuilders() {
 	}
 }
 
+=======
+>>>>>>> v1.2.5
 func (s *EthBackendServer) NodeInfo(_ context.Context, r *remote.NodesInfoRequest) (*remote.NodesInfoReply, error) {
 	nodesInfo, err := s.eth.NodesInfo(int(r.Limit))
 	if err != nil {
@@ -886,6 +886,10 @@ func (s *EthBackendServer) Peers(ctx context.Context, _ *emptypb.Empty) (*remote
 	return s.eth.Peers(ctx)
 }
 
+func (s *EthBackendServer) AddPeer(ctx context.Context, req *remote.AddPeerRequest) (*remote.AddPeerReply, error) {
+	return s.eth.AddPeer(ctx, req)
+}
+
 func (s *EthBackendServer) SubscribeLogs(server remote.ETHBACKEND_SubscribeLogsServer) (err error) {
 	if s.logsFilter != nil {
 		return s.logsFilter.subscribeLogs(server)
@@ -893,34 +897,18 @@ func (s *EthBackendServer) SubscribeLogs(server remote.ETHBACKEND_SubscribeLogsS
 	return fmt.Errorf("no logs filter available")
 }
 
-func ConvertWithdrawalsFromRpc(in []*types2.Withdrawal) []*types.Withdrawal {
-	if in == nil {
-		return nil
+func (s *EthBackendServer) BorEvent(ctx context.Context, req *remote.BorEventRequest) (*remote.BorEventReply, error) {
+	tx, err := s.db.BeginRo(ctx)
+	if err != nil {
+		return nil, err
 	}
-	out := make([]*types.Withdrawal, 0, len(in))
-	for _, w := range in {
-		out = append(out, &types.Withdrawal{
-			Index:     w.Index,
-			Validator: w.ValidatorIndex,
-			Address:   gointerfaces.ConvertH160toAddress(w.Address),
-			Amount:    w.Amount,
-		})
+	defer tx.Rollback()
+	_, ok, err := s.blockReader.EventLookup(ctx, tx, gointerfaces.ConvertH256ToHash(req.BorTxHash))
+	if err != nil {
+		return nil, err
 	}
-	return out
-}
-
-func ConvertWithdrawalsToRpc(in []*types.Withdrawal) []*types2.Withdrawal {
-	if in == nil {
-		return nil
+	if !ok {
+		return &remote.BorEventReply{}, nil
 	}
-	out := make([]*types2.Withdrawal, 0, len(in))
-	for _, w := range in {
-		out = append(out, &types2.Withdrawal{
-			Index:          w.Index,
-			ValidatorIndex: w.Validator,
-			Address:        gointerfaces.ConvertAddressToH160(w.Address),
-			Amount:         w.Amount,
-		})
-	}
-	return out
+	return &remote.BorEventReply{}, nil
 }

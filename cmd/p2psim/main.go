@@ -44,7 +44,10 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/ledgerwatch/erigon/cmd/utils"
+	"github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/log/v3"
+
+	"github.com/ledgerwatch/erigon/turbo/logging"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ledgerwatch/erigon/crypto"
@@ -69,7 +72,8 @@ func main() {
 		},
 	}
 	app.Before = func(ctx *cli.Context) error {
-		client = simulations.NewClient(ctx.String("api"))
+		logger := logging.SetupLoggerCtx("p2psim", ctx, log.LvlInfo, log.LvlInfo, false /* rootLogger */)
+		client = simulations.NewClient(ctx.String("api"), logger)
 		return nil
 	}
 	app.Commands = []*cli.Command{
@@ -290,7 +294,7 @@ func createNode(ctx *cli.Context) error {
 		config.PrivateKey = privKey
 	}
 	if services := ctx.String("services"); services != "" {
-		config.Lifecycles = utils.SplitAndTrim(services)
+		config.Lifecycles = common.CliString2Array(services)
 	}
 	node, err := client.CreateNode(config)
 	if err != nil {

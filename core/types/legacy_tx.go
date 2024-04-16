@@ -21,14 +21,13 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"math/bits"
 
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/chain"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
+	rlp2 "github.com/ledgerwatch/erigon-lib/rlp"
 	types2 "github.com/ledgerwatch/erigon-lib/types"
 
-	"github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/common/u256"
 	"github.com/ledgerwatch/erigon/rlp"
 )
@@ -36,7 +35,6 @@ import (
 type CommonTx struct {
 	TransactionMisc
 
-	ChainID *uint256.Int
 	Nonce   uint64             // nonce of sender account
 	Gas     uint64             // gas limit
 	To      *libcommon.Address `rlp:"nil"` // nil means contract creation
@@ -45,16 +43,16 @@ type CommonTx struct {
 	V, R, S uint256.Int        // signature values
 }
 
-func (ct CommonTx) GetChainID() *uint256.Int {
-	return ct.ChainID
-}
-
 func (ct CommonTx) GetNonce() uint64 {
 	return ct.Nonce
 }
 
 func (ct CommonTx) GetTo() *libcommon.Address {
 	return ct.To
+}
+
+func (ct CommonTx) GetBlobGas() uint64 {
+	return 0
 }
 
 func (ct CommonTx) GetGas() uint64 {
@@ -88,8 +86,8 @@ func (ct CommonTx) IsContractDeploy() bool {
 	return ct.GetTo() == nil
 }
 
-func (ct *CommonTx) GetDataHashes() []libcommon.Hash {
-	// Only blob txs have data hashes
+func (ct *CommonTx) GetBlobHashes() []libcommon.Hash {
+	// Only blob txs have blob hashes
 	return []libcommon.Hash{}
 }
 
@@ -119,19 +117,16 @@ func (tx LegacyTx) GetEffectiveGasTip(baseFee *uint256.Int) *uint256.Int {
 	}
 }
 
-func (tx LegacyTx) Cost() *uint256.Int {
-	total := new(uint256.Int).SetUint64(tx.Gas)
-	total.Mul(total, tx.GasPrice)
-	total.Add(total, tx.Value)
-	return total
-}
-
 func (tx LegacyTx) GetAccessList() types2.AccessList {
 	return types2.AccessList{}
 }
 
 func (tx LegacyTx) Protected() bool {
 	return isProtectedV(&tx.V)
+}
+
+func (tx *LegacyTx) Unwrap() Transaction {
+	return tx
 }
 
 // NewTransaction creates an unsigned legacy transaction.
@@ -167,13 +162,11 @@ func NewContractCreation(nonce uint64, amount *uint256.Int, gasLimit uint64, gas
 func (tx LegacyTx) copy() *LegacyTx {
 	cpy := &LegacyTx{
 		CommonTx: CommonTx{
-			TransactionMisc: TransactionMisc{
-				time: tx.time,
-			},
-			Nonce: tx.Nonce,
-			To:    tx.To, // TODO: copy pointed-to address
-			Data:  common.CopyBytes(tx.Data),
-			Gas:   tx.Gas,
+			TransactionMisc: TransactionMisc{},
+			Nonce:           tx.Nonce,
+			To:              tx.To, // TODO: copy pointed-to address
+			Data:            libcommon.CopyBytes(tx.Data),
+			Gas:             tx.Gas,
 			// These are initialized below.
 			Value: new(uint256.Int),
 		},
@@ -212,19 +205,7 @@ func (tx LegacyTx) payloadSize() (payloadSize int, nonceLen, gasLen int) {
 	payloadSize++
 	payloadSize += rlp.Uint256LenExcludingHead(tx.Value)
 	// size of Data
-	payloadSize++
-	switch len(tx.Data) {
-	case 0:
-	case 1:
-		if tx.Data[0] >= 128 {
-			payloadSize++
-		}
-	default:
-		if len(tx.Data) >= 56 {
-			payloadSize += (bits.Len(uint(len(tx.Data))) + 7) / 8
-		}
-		payloadSize += len(tx.Data)
-	}
+	payloadSize += rlp2.StringLen(tx.Data)
 	// size of V
 	payloadSize++
 	payloadSize += rlp.Uint256LenExcludingHead(&tx.V)

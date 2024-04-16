@@ -60,7 +60,11 @@ func backOffTime(snap *Snapshot, header *types.Header, val libcommon.Address, ch
 			}
 		}
 		if idx < 0 {
+<<<<<<< HEAD
 			log.Info("The validator is not authorized", "addr", val)
+=======
+			log.Debug("The validator is not authorized", "addr", val)
+>>>>>>> v1.2.5
 			return 0
 		}
 

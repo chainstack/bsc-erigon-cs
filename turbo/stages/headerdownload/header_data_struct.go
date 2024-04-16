@@ -11,12 +11,11 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/etl"
-
 	"github.com/ledgerwatch/erigon/consensus"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/rlp"
-	"github.com/ledgerwatch/erigon/turbo/engineapi"
 	"github.com/ledgerwatch/erigon/turbo/services"
+	"github.com/ledgerwatch/log/v3"
 )
 
 type QueueID uint8
@@ -28,7 +27,7 @@ const (
 	PersistedQueueID
 )
 
-// Link is a chain link that can be connect to other chain links
+// Link is a chain link that can be connected to other links in the chain
 // For a given link, parent link can be found by hd.links[link.header.ParentHash], and child links by link.next (there may be more than one child in case of forks)
 // Links encapsule block headers
 // Links can be either persistent or not. Persistent links encapsule headers that have already been saved to the database, but these links are still
@@ -45,6 +44,24 @@ type Link struct {
 	linked      bool    // Whether this link is connected (via chain of ParentHash to one of the persisted links)
 	idx         int     // Index in the heap
 	queueId     QueueID // which queue this link belongs to
+	peerId      [64]byte
+}
+
+func (link *Link) ClearChildren() {
+	for child := link.fChild; child != nil; child, child.next = child.next, nil {
+	}
+}
+
+func (parentLink *Link) RemoveChild(link *Link) {
+	var prevChild *Link
+	for child := parentLink.fChild; child != nil && child != link; child = child.next {
+		prevChild = child
+	}
+	if prevChild == nil {
+		parentLink.fChild = link.next
+	} else {
+		prevChild.next = link.next
+	}
 }
 
 // LinkQueue is the priority queue of links. It is instantiated once for persistent links, and once for non-persistent links
@@ -110,6 +127,18 @@ type Anchor struct {
 	blockHeight   uint64
 	nextRetryTime time.Time // Zero when anchor has just been created, otherwise time when anchor needs to be check to see if retry is needed
 	timeouts      int       // Number of timeout that this anchor has experiences - after certain threshold, it gets invalidated
+}
+
+func (anchor *Anchor) RemoveChild(link *Link) {
+	var prevChild *Link
+	for child := anchor.fLink; child != nil && child != link; child = child.next {
+		prevChild = child
+	}
+	if prevChild == nil {
+		anchor.fLink = link.next
+	} else {
+		prevChild.next = link.next
+	}
 }
 
 type ChainSegmentHeader struct {
@@ -198,7 +227,7 @@ func (iq *InsertQueue) Pop() interface{} {
 	old := *iq
 	n := len(old)
 	x := old[n-1]
-	old[n-1] = nil
+	old[n-1] = nil // avoid memory leak
 	*iq = old[0 : n-1]
 	x.idx = -1
 	x.queueId = NoQueue
@@ -224,6 +253,8 @@ type Stats struct {
 	SkeletonReqMaxBlock uint64
 	RespMinBlock        uint64
 	RespMaxBlock        uint64
+	InvalidHeaders      int
+	RejectedBadHeaders  int
 }
 
 type HeaderDownload struct {
@@ -252,6 +283,7 @@ type HeaderDownload struct {
 	trace                  bool
 	stats                  Stats
 
+<<<<<<< HEAD
 	ConsensusHeaderReader consensus.ChainHeaderReader
 	headerReader          services.HeaderReader
 
@@ -273,6 +305,25 @@ type HeaderDownload struct {
 	badPoSHeaders        map[common.Hash]common.Hash  // Invalid Tip -> Last Valid Ancestor
 	stageSyncUpperBound  uint64                       // Upper bound for stage sync, stop sync upon reached this height
 	stageSyncStep        uint64                       // Step for stage sync
+=======
+	consensusHeaderReader consensus.ChainHeaderReader
+	headerReader          services.HeaderAndCanonicalReader
+
+	// Proof of Stake (PoS)
+	firstSeenHeightPoS  *uint64
+	requestId           int
+	posAnchor           *Anchor
+	posStatus           SyncStatus
+	posSync             bool                        // Whether the chain is syncing in the PoS mode
+	headersCollector    *etl.Collector              // ETL collector for headers
+	ShutdownCh          chan struct{}               // Channel to signal shutdown
+	pendingPayloadHash  common.Hash                 // Header whose status we still should send to PayloadStatusCh
+	unsettledHeadHeight uint64                      // Height of unsettledForkChoice.headBlockHash
+	badPoSHeaders       map[common.Hash]common.Hash // Invalid Tip -> Last Valid Ancestor
+	stageSyncUpperBound uint64                      // Upper bound for stage sync, stop sync upon reached this height
+	stageSyncStep       uint64                      // Step for stage sync
+	logger              log.Logger
+>>>>>>> v1.2.5
 }
 
 // HeaderRecord encapsulates two forms of the same header - raw RLP encoding (to avoid duplicated decodings and encodings), and parsed value types.Header
@@ -286,6 +337,7 @@ func NewHeaderDownload(
 	linkLimit int,
 	engine consensus.Engine,
 	headerReader services.HeaderAndCanonicalReader,
+	logger log.Logger,
 ) *HeaderDownload {
 	persistentLinkLimit := linkLimit / 16
 	hd := &HeaderDownload{
@@ -301,11 +353,10 @@ func NewHeaderDownload(
 		seenAnnounces:      NewSeenAnnounces(),
 		DeliveryNotify:     make(chan struct{}, 1),
 		QuitPoWMining:      make(chan struct{}),
-		BeaconRequestList:  engineapi.NewRequestList(),
-		PayloadStatusCh:    make(chan engineapi.PayloadStatus, 1),
 		ShutdownCh:         make(chan struct{}),
 		headerReader:       headerReader,
 		badPoSHeaders:      make(map[common.Hash]common.Hash),
+		logger:             logger,
 	}
 	heap.Init(&hd.persistedLinkQueue)
 	heap.Init(&hd.linkQueue)

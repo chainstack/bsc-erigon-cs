@@ -3,6 +3,7 @@ package vm
 import (
 	"encoding/binary"
 	"encoding/hex"
+<<<<<<< HEAD
 	"github.com/ledgerwatch/erigon/core/vm/lightclient/v1"
 	"testing"
 
@@ -13,6 +14,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ledgerwatch/erigon/core/vm/lightclient/iavl"
+=======
+	"github.com/ledgerwatch/erigon/core/vm/lightclient/iavl"
+	"github.com/ledgerwatch/erigon/core/vm/lightclient/v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/tendermint/tendermint/crypto/merkle"
+	cmn "github.com/tendermint/tendermint/libs/common"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+>>>>>>> v1.2.5
 )
 
 const (

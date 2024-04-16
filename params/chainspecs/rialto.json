@@ -31,6 +31,10 @@
   "keplerTime": 0,
   "feynmanTime": 0,
   "feynmanFixTime":0,
+<<<<<<< HEAD
+=======
+  "cancunTime": 0,
+>>>>>>> v1.2.5
   "parlia": {
     "DBPath": "",
     "InMemory": false,
