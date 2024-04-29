@@ -38,7 +38,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.8.0
 	github.com/deckarep/golang-set/v2 v2.5.0
-	github.com/docker/docker v24.0.5+incompatible
+	github.com/docker/docker v24.0.9+incompatible
 	github.com/dop251/goja v0.0.0-20230806174421-c933cf95e127
 	github.com/edsrzf/mmap-go v1.1.0
 	github.com/emicklei/dot v1.6.1
