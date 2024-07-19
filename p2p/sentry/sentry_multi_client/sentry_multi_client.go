@@ -157,9 +157,7 @@ func SentryReconnectAndPumpStreamLoop[TMessage interface{}](
 		statusData, err := statusDataFactory(ctx)
 
 		if err != nil {
-			if !errors.Is(err, sentry.ErrNoHead) {
-				logger.Error("SentryReconnectAndPumpStreamLoop: statusDataFactory error", "stream", streamName, "err", err)
-			}
+			logger.Error("SentryReconnectAndPumpStreamLoop: statusDataFactory error", "stream", streamName, "err", err)
 			time.Sleep(time.Second)
 			continue
 		}
@@ -530,10 +528,10 @@ func (cs *MultiClient) newBlock66(ctx context.Context, inreq *proto_sentry.Inbou
 		return fmt.Errorf("decode 4 NewBlockMsg: %w", err)
 	}
 	if err := request.SanityCheck(); err != nil {
-		return fmt.Errorf("newBlock66: %w", err)
+		return fmt.Errorf("newBlock66: %w,  PeerID: %s", err, fmt.Sprintf("%x", sentry.ConvertH512ToPeerID(inreq.PeerId))[:8])
 	}
 	if err := request.Block.HashCheck(); err != nil {
-		return fmt.Errorf("newBlock66: %w", err)
+		return fmt.Errorf("newBlock66: %w,  PeerID: %s", err, fmt.Sprintf("%x", sentry.ConvertH512ToPeerID(inreq.PeerId))[:8])
 	}
 
 	if request.Sidecars != nil && len(request.Sidecars) > 0 {
@@ -577,6 +575,9 @@ func (cs *MultiClient) newBlock66(ctx context.Context, inreq *proto_sentry.Inbou
 		return fmt.Errorf("singleHeaderAsSegment failed: %w", err)
 	}
 	cs.Bd.AddToPrefetch(request.Block.Header(), request.Block.RawBody())
+	if cs.Bd.LatestBlock < request.Block.NumberU64() {
+		cs.Bd.LatestBlock = request.Block.NumberU64()
+	}
 	outreq := proto_sentry.PeerMinBlockRequest{
 		PeerId:   inreq.PeerId,
 		MinBlock: request.Block.NumberU64(),

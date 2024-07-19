@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"sort"
 	"strconv"
 
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -70,6 +71,8 @@ type Config struct {
 	FeynmanFixTime *big.Int `json:"feynmanFixTime,omitempty"`
 	CancunTime     *big.Int `json:"cancunTime,omitempty"`
 	HaberTime      *big.Int `json:"haberTime,omitempty"`
+	HaberFixTime   *big.Int `json:"haberFixTime,omitempty"`
+	BohrTime       *big.Int `json:"bohrTime,omitempty"`
 	PragueTime     *big.Int `json:"pragueTime,omitempty"`
 	OsakaTime      *big.Int `json:"osakaTime,omitempty"`
 
@@ -124,7 +127,7 @@ func (c *Config) String() string {
 	engine := c.getEngine()
 
 	if c.Consensus == ParliaConsensus {
-		return fmt.Sprintf("{ChainID: %v Ramanujan: %v, Niels: %v, MirrorSync: %v, Bruno: %v, Euler: %v, Gibbs: %v, Nano: %v, Moran: %v, Planck: %v, Luban: %v, Plato: %v, Hertz: %v, Hertzfix: %v, ShanghaiTime: %v, KeplerTime %v, FeynmanTime %v, FeynmanFixTime %v, CancunTime %v, HaberTime %v, Engine: %v}",
+		return fmt.Sprintf("{ChainID: %v Ramanujan: %v, Niels: %v, MirrorSync: %v, Bruno: %v, Euler: %v, Gibbs: %v, Nano: %v, Moran: %v, Planck: %v, Luban: %v, Plato: %v, Hertz: %v, Hertzfix: %v, ShanghaiTime: %v, KeplerTime %v, FeynmanTime %v, FeynmanFixTime %v, CancunTime %v, HaberTime %v, HaberFixTime %v, Engine: %v}",
 			c.ChainID,
 			c.RamanujanBlock,
 			c.NielsBlock,
@@ -145,6 +148,7 @@ func (c *Config) String() string {
 			c.FeynmanFixTime,
 			c.CancunTime,
 			c.HaberTime,
+			c.HaberFixTime,
 			engine,
 		)
 	}
@@ -280,11 +284,6 @@ func (c *Config) IsNapoli(num uint64) bool {
 // IsCancun returns whether time is either equal to the Cancun fork time or greater.
 func (c *Config) IsCancun(num uint64, time uint64) bool {
 	return c.IsLondon(num) && isForked(c.CancunTime, time)
-}
-
-// IsHaber returns whether time is either equal to the Haber fork time or greater.
-func (c *Config) IsHaber(num uint64, time uint64) bool {
-	return c.IsLondon(num) && isForked(c.HaberTime, time)
 }
 
 // IsPrague returns whether time is either equal to the Prague fork time or greater.
@@ -493,6 +492,25 @@ func (c *Config) IsOnFeynmanFix(currentBlockNumber *big.Int, lastBlockTime uint6
 	return !c.IsFeynmanFix(lastBlockNumber.Uint64(), lastBlockTime) && c.IsFeynmanFix(currentBlockNumber.Uint64(), currentBlockTime)
 }
 
+// IsHaber returns whether time is either equal to the Haber fork time or greater.
+func (c *Config) IsHaber(num uint64, time uint64) bool {
+	return c.IsLondon(num) && isForked(c.HaberTime, time)
+}
+
+// IsHaber returns whether time is either equal to the Haber fork time or greater.
+func (c *Config) IsHaberFix(num uint64, time uint64) bool {
+	return c.IsLondon(num) && isForked(c.HaberFixTime, time)
+}
+
+// IsOnHaberFix returns whether currentBlockTime is either equal to the HaberFix fork time or greater firstly.
+func (c *Config) IsOnHaberFix(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsHaberFix(lastBlockNumber.Uint64(), lastBlockTime) && c.IsHaberFix(currentBlockNumber.Uint64(), currentBlockTime)
+}
+
 // CheckCompatible checks whether scheduled fork transitions have been imported
 // with a mismatching chain configuration.
 func (c *Config) CheckCompatible(newcfg *Config, height uint64) *ConfigCompatError {
@@ -686,10 +704,32 @@ func (c *CliqueConfig) String() string {
 }
 
 type ParliaConfig struct {
-	DBPath   string
-	InMemory bool
-	Period   uint64 `json:"period"` // Number of seconds between blocks to enforce
-	Epoch    uint64 `json:"epoch"`  // Epoch length to update validatorSet
+	DBPath     string
+	InMemory   bool
+	Period     uint64                 `json:"period"`     // Number of seconds between blocks to enforce
+	Epoch      uint64                 `json:"epoch"`      // Epoch length to update validatorSet
+	BlockAlloc map[string]interface{} `json:"blockAlloc"` // For systemContract upgrade
+}
+
+type KeyValues struct {
+	NumOrTime  uint64
+	BlockAlloc interface{}
+}
+
+func (b *ParliaConfig) SortedBlockAlloc() ([]KeyValues, error) {
+	ret := make([]KeyValues, 0, len(b.BlockAlloc))
+	for blockNumberOrTime, genesisAlloc := range b.BlockAlloc {
+		numOrTime, err := strconv.ParseUint(blockNumberOrTime, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, KeyValues{NumOrTime: numOrTime, BlockAlloc: genesisAlloc})
+	}
+	// sort ret by keys in ascending order
+	sort.Slice(ret, func(i, j int) bool {
+		return ret[i].NumOrTime < ret[j].NumOrTime
+	})
+	return ret, nil
 }
 
 // String implements the stringer interface, returning the consensus engine details.

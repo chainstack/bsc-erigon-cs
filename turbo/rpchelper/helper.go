@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	parliafinality "github.com/ledgerwatch/erigon/consensus/parlia/finality"
 	"github.com/ledgerwatch/erigon/turbo/services"
 
@@ -72,7 +71,9 @@ func _GetBlockNumber(requireCanonical bool, blockNrOrHash rpc.BlockNumberOrHash,
 			if fs := parliafinality.GetFinalizationService(); fs != nil {
 				blockHash := fs.GetFinalizeBlockHash()
 				blockNum := rawdb.ReadHeaderNumber(tx, blockHash)
-				return *blockNum, blockHash, false, nil
+				if blockNum != nil {
+					return *blockNum, blockHash, false, nil
+				}
 			}
 			blockNumber, err = GetFinalizedBlockNumber(tx)
 			if err != nil {
@@ -82,7 +83,9 @@ func _GetBlockNumber(requireCanonical bool, blockNrOrHash rpc.BlockNumberOrHash,
 			if fs := parliafinality.GetFinalizationService(); fs != nil {
 				blockHash := fs.GetSafeBlockHash()
 				blockNum := rawdb.ReadHeaderNumber(tx, blockHash)
-				return *blockNum, blockHash, false, nil
+				if blockNum != nil {
+					return *blockNum, blockHash, false, nil
+				}
 			}
 			blockNumber, err = GetSafeBlockNumber(tx)
 			if err != nil {
@@ -139,14 +142,25 @@ func CreateStateReaderFromBlockNumber(ctx context.Context, tx kv.Tx, blockNumber
 		}
 		return state.NewCachedReader2(cacheView, tx), nil
 	}
+	var time uint64
 	header, err := headerReader.HeaderByNumber(ctx, tx, blockNumber+1)
 	if err != nil {
 		return nil, err
 	}
-	if header == nil {
-		return nil, nil
+	if header != nil {
+		time = header.Time
+	} else {
+		parent, err := headerReader.HeaderByNumber(ctx, tx, blockNumber)
+		if err != nil {
+			return nil, err
+		}
+		if parent == nil {
+			return nil, fmt.Errorf("can't find block Time")
+		}
+		time = parent.Time
 	}
-	return CreateHistoryStateReader(tx, blockNumber+1, txnIndex, historyV3, header.Time, chainName)
+
+	return CreateHistoryStateReader(tx, blockNumber+1, txnIndex, historyV3, time, chainName)
 }
 
 func CreateHistoryStateReader(tx kv.Tx, blockNumber uint64, txnIndex int, historyV3 bool, time uint64, chainName string) (state.StateReader, error) {
